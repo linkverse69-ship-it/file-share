@@ -1,8 +1,23 @@
+import os
 import threading
-import health
-import bot
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
-t = threading.Thread(target=health.run, daemon=True)
-t.start()
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(b"OK")
 
-bot.main()
+def run_health():
+    port = int(os.environ.get("PORT", "8080"))
+    HTTPServer(("0.0.0.0", port), Handler).serve_forever()
+
+def run_bot():
+    import bot
+    bot.main()
+
+if __name__ == "__main__":
+    t = threading.Thread(target=run_health, daemon=True)
+    t.start()
+    run_bot()
