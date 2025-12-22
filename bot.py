@@ -4,7 +4,7 @@ import secrets
 from datetime import datetime, timezone
 
 from pymongo import MongoClient
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -35,6 +35,43 @@ WELCOME_TEXT = (
 
 client = None
 db = None
+
+
+class ProtectedBot(Bot):
+    @staticmethod
+    def _protect(kwargs: dict) -> dict:
+        kwargs.setdefault("protect_content", True)
+        return kwargs
+
+    async def send_message(self, *args, **kwargs):
+        return await super().send_message(*args, **self._protect(kwargs))
+
+    async def send_photo(self, *args, **kwargs):
+        return await super().send_photo(*args, **self._protect(kwargs))
+
+    async def send_video(self, *args, **kwargs):
+        return await super().send_video(*args, **self._protect(kwargs))
+
+    async def send_document(self, *args, **kwargs):
+        return await super().send_document(*args, **self._protect(kwargs))
+
+    async def send_audio(self, *args, **kwargs):
+        return await super().send_audio(*args, **self._protect(kwargs))
+
+    async def send_animation(self, *args, **kwargs):
+        return await super().send_animation(*args, **self._protect(kwargs))
+
+    async def send_voice(self, *args, **kwargs):
+        return await super().send_voice(*args, **self._protect(kwargs))
+
+    async def send_video_note(self, *args, **kwargs):
+        return await super().send_video_note(*args, **self._protect(kwargs))
+
+    async def copy_message(self, *args, **kwargs):
+        return await super().copy_message(*args, **self._protect(kwargs))
+
+    async def forward_message(self, *args, **kwargs):
+        return await super().forward_message(*args, **self._protect(kwargs))
 
 
 def init_db():
@@ -473,7 +510,8 @@ async def post_init(application: Application):
 
 
 def main():
-    app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
+    bot = ProtectedBot(token=BOT_TOKEN)
+    app = Application.builder().bot(bot).post_init(post_init).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("stats", stats))
