@@ -25,7 +25,7 @@ ADMIN_ID = 7737575998
 MONGO_URI = "mongodb+srv://yatoo:yatoo@cluster.4rnyscd.mongodb.net/?appName=Cluster"
 
 DELIVERY_DELETE_SECONDS = 1200
-ALBUM_WAIT_SECONDS = 1.2
+COLLECTION_TIMEOUT = 2.0  # 2 seconds timeout for collecting media
 CAPTION_TEXT = "this will be deleted in 20 mins"
 
 WELCOME_TEXT = (
@@ -403,77 +403,64 @@ async def store(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Unsupported message.")
         return
 
-    mgid = update.message.media_group_id
+    # Use user_id as the collection key
+    collection_key = f"collection:{uid}"
+    key_mids = f"{collection_key}:mids"
+    key_items = f"{collection_key}:items"
+    key_chat = f"{collection_key}:chat"
+    task_key = f"task:{collection_key}"
 
-    if mgid:
-        base = f"mg:{update.effective_chat.id}:{mgid}"
-        key_mids = f"{base}:mids"
-        key_items = f"{base}:items"
+    # Store chat_id for later
+    context.application.bot_data[key_chat] = update.effective_chat.id
 
-        mids_bucket = context.application.bot_data.get(key_mids, [])
-        mids_bucket.append(update.message.message_id)
-        context.application.bot_data[key_mids] = mids_bucket
+    # Add to collection
+    mids_bucket = context.application.bot_data.get(key_mids, [])
+    mids_bucket.append(update.message.message_id)
+    context.application.bot_data[key_mids] = mids_bucket
 
-        items_bucket = context.application.bot_data.get(key_items, [])
-        items_bucket.append(item)
-        context.application.bot_data[key_items] = items_bucket
+    items_bucket = context.application.bot_data.get(key_items, [])
+    items_bucket.append(item)
+    context.application.bot_data[key_items] = items_bucket
 
-        task_key = f"task:{base}"
-        old = context.application.bot_data.get(task_key)
-        if old:
-            try:
-                old.cancel()
-            except Exception:
-                pass
-
-        context.application.bot_data[task_key] = asyncio.create_task(
-            finalize_album(context.application, update.effective_chat.id, base)
-        )
-        return
-
-    try:
-        stored_msg = await context.bot.forward_message(
-            chat_id=STORAGE_CHANNEL_ID,
-            from_chat_id=update.effective_chat.id,
-            message_id=update.message.message_id,
-        )
-    except Exception:
+    # Cancel existing timer and start new one
+    old_task = context.application.bot_data.get(task_key)
+    if old_task:
         try:
-            stored_msg = await context.bot.copy_message(
-                chat_id=STORAGE_CHANNEL_ID,
-                from_chat_id=update.effective_chat.id,
-                message_id=update.message.message_id,
-            )
+            old_task.cancel()
         except Exception:
-            await update.message.reply_text("Upload failed.")
-            return
+            pass
 
-    code = make_code()
-    save_link(code, {"storage_message_ids": [stored_msg.message_id], "items": [item]})
-    await update.message.reply_text(
-        f"https://t.me/{BOT_USERNAME}?start={code}", disable_web_page_preview=True
+    # Create new timer task
+    context.application.bot_data[task_key] = asyncio.create_task(
+        finalize_collection(context.application, uid)
     )
 
 
-async def finalize_album(app: Application, chat_id: int, base: str):
-    await asyncio.sleep(ALBUM_WAIT_SECONDS)
+async def finalize_collection(app: Application, user_id: int):
+    await asyncio.sleep(COLLECTION_TIMEOUT)
 
-    key_mids = f"{base}:mids"
-    key_items = f"{base}:items"
-    task_key = f"task:{base}"
+    collection_key = f"collection:{user_id}"
+    key_mids = f"{collection_key}:mids"
+    key_items = f"{collection_key}:items"
+    key_chat = f"{collection_key}:chat"
+    task_key = f"task:{collection_key}"
 
     msg_ids = app.bot_data.get(key_mids, [])
     items = app.bot_data.get(key_items, [])
+    chat_id = app.bot_data.get(key_chat)
 
+    # Clean up
     app.bot_data.pop(key_mids, None)
     app.bot_data.pop(key_items, None)
+    app.bot_data.pop(key_chat, None)
     app.bot_data.pop(task_key, None)
 
-    if not msg_ids:
+    if not msg_ids or not chat_id:
         return
 
     stored_ids = []
 
+    # Upload all collected media to storage channel
     for mid in msg_ids:
         try:
             stored_msg = await app.bot.forward_message(
@@ -489,11 +476,17 @@ async def finalize_album(app: Application, chat_id: int, base: str):
                     message_id=int(mid),
                 )
             except Exception:
-                return
+                continue
         stored_ids.append(stored_msg.message_id)
 
+    if not stored_ids:
+        return
+
+    # Generate single link for all media
     code = make_code()
     save_link(code, {"storage_message_ids": stored_ids, "items": items})
+    
+    # Send link back to user
     try:
         await app.bot.send_message(
             chat_id=chat_id,
