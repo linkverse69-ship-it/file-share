@@ -16,13 +16,13 @@ from telegram.ext import (
 
 logging.disable(logging.CRITICAL)
 
-BOT_TOKEN = "6863982081:AAF-Xa7S_OgJ5TRYT_Qth_wyQ7AdjuX_eGM"
-BOT_USERNAME = "KenzoXrobot"
-STORAGE_CHANNEL_ID = -1003439660511
-FORCE_JOIN_CHANNEL_ID = -1003341125100
-FORCE_JOIN_URL = "https://t.me/linkverse6969"
-ADMIN_ID = 7737575998
-MONGO_URI = "mongodb+srv://yatoo:yatoo@cluster.4rnyscd.mongodb.net/?appName=Cluster"
+BOT_TOKEN = "8518397813:AAGan-mhor OWNEvCJNyaVk6WJU1TZTeKeeg"
+BOT_USERNAME = "hiyakkimaruxrobot"
+STORAGE_CHANNEL_ID = -1003629122413
+FORCE_JOIN_CHANNEL_ID = -1003588628999
+FORCE_JOIN_URL = "https://t.me/leakverse_6969"
+ADMIN_ID = 7904969568
+MONGO_URI = "mongodb+srv://leakverse:leakverse@cluster0.vrrzdtn.mongodb.net/?appName=Cluster0"
 
 DELIVERY_DELETE_SECONDS = 1200
 COLLECTION_TIMEOUT = 2.0  # 2 seconds timeout for collecting media
